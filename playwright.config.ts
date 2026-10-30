@@ -121,4 +121,17 @@ export default defineConfig({
   ],
 
   outputDir: 'test-results/artifacts',
+
+  /*
+   * Playwright owns the NexusShop lifecycle during test execution.
+   *
+   * The health endpoint is used as the readiness check so tests do not begin
+   * until the application is actually accepting requests.
+   */
+  webServer: {
+    command: 'npm run app:start',
+    url: 'http://127.0.0.1:3000/health',
+    reuseExistingServer: !isCi,
+    timeout: 30_000,
+  },
 });
