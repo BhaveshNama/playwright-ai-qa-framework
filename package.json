@@ -3,11 +3,18 @@
   "version": "1.0.0",
   "description": "Production-style Playwright TypeScript quality engineering platform with governed AI-assisted testing capabilities",
   "private": true,
-  "scripts":
-  {
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "env:check": "tsx scripts/validate-environment.ts",
+    "quality": "npm run format:check && npm run lint && npm run typecheck && npm run env:check",
     "test": "playwright test",
-    "test:chromium": "playwright test --project=chromium",
-    "test:headed": "playwright test --project=chromium --headed",
+    "test:framework": "playwright test --project=framework",
+    "test:api": "playwright test --project=api --pass-with-no-tests",
+    "test:chromium": "playwright test --project=chromium --pass-with-no-tests",
+    "test:headed": "playwright test --project=chromium --headed --pass-with-no-tests",
     "test:ui-mode": "playwright test --ui",
     "test:debug": "playwright test --debug",
     "test:list": "playwright test --list",
@@ -18,7 +25,18 @@
   "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.64.1",
-    "@types/node": "^26.6.6"
+    "@types/node": "^26.6.6",
+    "eslint": "^10.13.0",
+    "eslint-plugin-playwright": "^2.12.1",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.72.1"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.9",
+    "zod": "^4.6.7"
   }
 }

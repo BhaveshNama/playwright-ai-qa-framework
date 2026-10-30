@@ -1,0 +1,10 @@
+node_modules/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+artifacts/
+coverage/
+postgres-data/
+automation/auth/storage-state/
+package-lock.json
