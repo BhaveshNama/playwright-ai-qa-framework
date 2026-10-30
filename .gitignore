@@ -1,0 +1,35 @@
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+
+# Environment files may contain credentials or API keys.
+.env
+.env.*
+!.env.example
+
+# Generated authentication state may contain cookies or tokens.
+automation/auth/storage-state/*
+!automation/auth/storage-state/.gitkeep
+
+# Runtime logs and generated reports.
+logs/
+coverage/
+allure-results/
+allure-report/
+
+# Agent and test execution artifacts.
+artifacts/
+
+# Local database/container data.
+postgres-data/
+
+# Developer-specific files.
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
