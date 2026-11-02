@@ -34,7 +34,14 @@ export default defineConfig({
    * Limit CI parallelism initially while the test application and isolated
    * test-data strategy are being introduced.
    */
-  workers: isCi ? 2 : undefined,
+
+  /*
+   * Bound local and CI concurrency to avoid browser-process contention.
+   *
+   * UI tests remain parallel, while Firefox and WebKit receive enough local
+   * resources to complete navigation and interaction reliably.
+   */
+  workers: isCi ? 2 : 4,
 
   timeout: 30_000,
 

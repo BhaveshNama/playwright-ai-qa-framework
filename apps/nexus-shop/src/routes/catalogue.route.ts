@@ -23,6 +23,13 @@ catalogueRouter.get('/products', (_request, response) => {
           <p>Category: ${product.category}</p>
           <p>Price: $${price}</p>
           <p>Status: ${availability}</p>
+          <button
+            type="button"
+            data-add-product="${product.id}"
+            ${product.isAvailable ? '' : 'disabled'}
+          >
+            Add ${product.name} to cart
+          </button>
         </article>
       `;
     })
@@ -96,6 +103,36 @@ catalogueRouter.get('/products', (_request, response) => {
 
             noProductsMessage.hidden = visibleProductCount !== 0;
           });
+
+          const addProductButtons = document.querySelectorAll(
+            '[data-add-product]'
+          );
+
+          for (const button of addProductButtons) {
+            button.addEventListener('click', async () => {
+              const productId =
+                button.dataset.addProduct;
+
+              if (!productId) {
+                return;
+              }
+
+              const response = await fetch('/api/cart/items', {
+                method: 'POST',
+                headers: {
+                  'content-type': 'application/json',
+                },
+                body: JSON.stringify({
+                  productId,
+                  quantity: 1,
+                }),
+              });
+
+              if (response.ok) {
+                window.location.assign('/cart');
+              }
+            });
+          }
         </script>
       </body>
     </html>

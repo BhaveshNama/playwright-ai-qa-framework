@@ -39,4 +39,12 @@ export class CataloguePage extends BasePage {
   async searchFor(productName: string): Promise<void> {
     await this.searchInput.fill(productName);
   }
+
+  async addProductToCart(productName: string): Promise<void> {
+    await this.page
+      .getByRole('button', {
+        name: `Add ${productName} to cart`,
+      })
+      .click();
+  }
 }
