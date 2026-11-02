@@ -6,23 +6,29 @@ import { BasePage } from './base.page';
 export class LoginPage extends BasePage {
   protected readonly path = routes.login;
 
-  /*
-   * These locators express the intended accessible UI contract.
-   * NexusShop should expose user-facing labels and button names matching
-   * these concepts when the application is implemented.
-   */
+  readonly heading: Locator;
   readonly emailInput: Locator;
   readonly passwordInput: Locator;
   readonly signInButton: Locator;
+  readonly authenticationMessage: Locator;
 
   constructor(page: Page) {
     super(page);
 
+    this.heading = page.getByRole('heading', {
+      name: 'Sign in',
+      level: 1,
+    });
+
     this.emailInput = page.getByLabel('Email address');
+
     this.passwordInput = page.getByLabel('Password');
+
     this.signInButton = page.getByRole('button', {
       name: 'Sign in',
     });
+
+    this.authenticationMessage = page.getByRole('alert');
   }
 
   async signIn(email: string, password: string): Promise<void> {

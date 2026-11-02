@@ -1,7 +1,9 @@
 import express from 'express';
 
+import { authenticationRouter } from '../routes/authentication.route';
 import { catalogueRouter } from '../routes/catalogue.route';
 import { healthRouter } from '../routes/health.route';
+import { loginRouter } from '../routes/login.route';
 import { productRouter } from '../routes/product.route';
 
 /*
@@ -20,6 +22,8 @@ export function createApp(): express.Express {
 
   app.use(healthRouter);
   app.use(productRouter);
+  app.use(authenticationRouter);
+  app.use(loginRouter);
   app.use(catalogueRouter);
 
   return app;
