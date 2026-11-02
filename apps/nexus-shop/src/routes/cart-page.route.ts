@@ -143,6 +143,15 @@ cartPageRouter.get('/cart', (request, response) => {
               }
             });
           }
+
+          const checkoutButton =
+            document.querySelector('#checkout-button');
+
+          if (checkoutButton) {
+            checkoutButton.addEventListener('click', () => {
+              window.location.assign('/checkout');
+            });
+          }
         </script>
       </body>
     </html>

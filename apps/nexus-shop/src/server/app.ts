@@ -1,9 +1,11 @@
 import express from 'express';
 
 import { authenticationRouter } from '../routes/authentication.route';
-import { cartRouter } from '../routes/cart.route';
 import { cartPageRouter } from '../routes/cart-page.route';
+import { cartRouter } from '../routes/cart.route';
 import { catalogueRouter } from '../routes/catalogue.route';
+import { checkoutPageRouter } from '../routes/checkout-page.route';
+import { checkoutRouter } from '../routes/checkout.route';
 import { healthRouter } from '../routes/health.route';
 import { loginRouter } from '../routes/login.route';
 import { productRouter } from '../routes/product.route';
@@ -27,6 +29,8 @@ export function createApp(): express.Express {
   app.use(authenticationRouter);
   app.use(cartRouter);
   app.use(cartPageRouter);
+  app.use(checkoutRouter);
+  app.use(checkoutPageRouter);
   app.use(loginRouter);
   app.use(catalogueRouter);
 
