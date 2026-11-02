@@ -8,20 +8,35 @@ export class CataloguePage extends BasePage {
 
   readonly heading: Locator;
   readonly searchInput: Locator;
+  readonly productCatalogue: Locator;
+  readonly noProductsMessage: Locator;
 
   constructor(page: Page) {
     super(page);
 
     this.heading = page.getByRole('heading', {
       name: 'Products',
+      level: 1,
     });
 
     this.searchInput = page.getByRole('searchbox', {
       name: 'Search products',
     });
+
+    this.productCatalogue = page.getByRole('region', {
+      name: 'Product catalogue',
+    });
+
+    this.noProductsMessage = page.getByRole('status');
   }
 
   productByName(productName: string): Locator {
-    return this.page.getByRole('article').filter({ hasText: productName });
+    return this.page.getByRole('article', {
+      name: productName,
+    });
+  }
+
+  async searchFor(productName: string): Promise<void> {
+    await this.searchInput.fill(productName);
   }
 }
