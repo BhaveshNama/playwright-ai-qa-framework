@@ -175,4 +175,69 @@ test.describe('NexusShop cart service', () => {
       });
     },
   );
+
+  test(
+    'CFG-029 | cart service | isolates products between cart sessions',
+    {
+      tag: [testTags.integration, testTags.positive, testTags.critical],
+    },
+    async () => {
+      const firstCartId = 'cart-session-a';
+      const secondCartId = 'cart-session-b';
+
+      cartService.clear(firstCartId);
+      cartService.clear(secondCartId);
+
+      cartService.addProduct('PROD-002', 1, firstCartId);
+
+      cartService.addProduct('PROD-003', 2, secondCartId);
+
+      expect(cartService.getCart(firstCartId)).toEqual({
+        items: [
+          {
+            product: expect.objectContaining({
+              id: 'PROD-002',
+              name: 'QA Wireless Mouse',
+            }),
+            quantity: 1,
+          },
+        ],
+        totalInCents: 3999,
+      });
+
+      expect(cartService.getCart(secondCartId)).toEqual({
+        items: [
+          {
+            product: expect.objectContaining({
+              id: 'PROD-003',
+              name: 'Automation Keyboard',
+            }),
+            quantity: 2,
+          },
+        ],
+        totalInCents: 15998,
+      });
+
+      cartService.clear(firstCartId);
+
+      expect(cartService.getCart(firstCartId)).toEqual({
+        items: [],
+        totalInCents: 0,
+      });
+
+      expect(cartService.getCart(secondCartId)).toEqual({
+        items: [
+          {
+            product: expect.objectContaining({
+              id: 'PROD-003',
+            }),
+            quantity: 2,
+          },
+        ],
+        totalInCents: 15998,
+      });
+
+      cartService.clear(secondCartId);
+    },
+  );
 });

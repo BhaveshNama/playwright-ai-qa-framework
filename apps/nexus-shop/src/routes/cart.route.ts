@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import { cartService } from '../services/cart.service';
+import { resolveCartId } from '../utils/cart-id.util';
 
 export const cartRouter = Router();
 
@@ -14,8 +15,10 @@ const updateCartItemSchema = z.object({
   quantity: z.number().int().positive(),
 });
 
-cartRouter.get('/api/cart', (_request, response) => {
-  response.status(200).json(cartService.getCart());
+cartRouter.get('/api/cart', (request, response) => {
+  const cartId = resolveCartId(request);
+
+  response.status(200).json(cartService.getCart(cartId));
 });
 
 cartRouter.post('/api/cart/items', (request, response) => {
@@ -29,7 +32,13 @@ cartRouter.post('/api/cart/items', (request, response) => {
     return;
   }
 
-  const result = cartService.addProduct(parsedRequest.data.productId, parsedRequest.data.quantity);
+  const cartId = resolveCartId(request);
+
+  const result = cartService.addProduct(
+    parsedRequest.data.productId,
+    parsedRequest.data.quantity,
+    cartId,
+  );
 
   if (!result.success) {
     if (result.reason === 'PRODUCT_NOT_FOUND') {
@@ -69,7 +78,13 @@ cartRouter.patch('/api/cart/items/:productId', (request, response) => {
     return;
   }
 
-  const result = cartService.updateQuantity(request.params.productId, parsedRequest.data.quantity);
+  const cartId = resolveCartId(request);
+
+  const result = cartService.updateQuantity(
+    request.params.productId,
+    parsedRequest.data.quantity,
+    cartId,
+  );
 
   if (!result.success) {
     if (result.reason === 'PRODUCT_NOT_FOUND') {
@@ -91,13 +106,17 @@ cartRouter.patch('/api/cart/items/:productId', (request, response) => {
 });
 
 cartRouter.delete('/api/cart/items/:productId', (request, response) => {
-  const cart = cartService.removeProduct(request.params.productId);
+  const cartId = resolveCartId(request);
+
+  const cart = cartService.removeProduct(request.params.productId, cartId);
 
   response.status(200).json(cart);
 });
 
-cartRouter.delete('/api/cart', (_request, response) => {
-  cartService.clear();
+cartRouter.delete('/api/cart', (request, response) => {
+  const cartId = resolveCartId(request);
+
+  cartService.clear(cartId);
 
   response.status(204).send();
 });
