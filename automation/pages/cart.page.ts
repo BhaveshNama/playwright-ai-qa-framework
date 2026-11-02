@@ -49,4 +49,15 @@ export class CartPage extends BasePage {
   async proceedToCheckout(): Promise<void> {
     await this.checkoutButton.click();
   }
+
+  async updateQuantity(productName: string, quantity: number): Promise<void> {
+    const input = this.quantityInput(productName);
+
+    await input.fill(String(quantity));
+    await input.press('Tab');
+  }
+
+  async removeProduct(productName: string): Promise<void> {
+    await this.removeButton(productName).click();
+  }
 }

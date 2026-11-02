@@ -2,10 +2,13 @@ import { Router } from 'express';
 
 import { cartService } from '../services/cart.service';
 
+import { resolveCartId } from '../utils/cart-id.util';
+
 export const cartPageRouter = Router();
 
-cartPageRouter.get('/cart', (_request, response) => {
-  const cart = cartService.getCart();
+cartPageRouter.get('/cart', (request, response) => {
+  const cartId = resolveCartId(request);
+  const cart = cartService.getCart(cartId);
 
   const cartItems = cart.items
     .map((item) => {
@@ -83,6 +86,65 @@ cartPageRouter.get('/cart', (_request, response) => {
             Checkout
           </button>
         </main>
+
+        <script>
+          const quantityInputs = document.querySelectorAll(
+            'input[name^="quantity-"]'
+          );
+
+          for (const quantityInput of quantityInputs) {
+            quantityInput.addEventListener('change', async () => {
+              const productId =
+                quantityInput.id.replace('quantity-', '');
+
+              const quantity = Number(quantityInput.value);
+
+              const response = await fetch(
+                '/api/cart/items/' + productId,
+                {
+                  method: 'PATCH',
+                  headers: {
+                    'content-type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    quantity,
+                  }),
+                }
+              );
+
+              if (response.ok) {
+                window.location.reload();
+              }
+            });
+          }
+
+          const removeButtons = document.querySelectorAll(
+            '[data-remove-product]'
+          );
+
+          for (const removeButton of removeButtons) {
+            removeButton.addEventListener('click', async () => {
+              const productId =
+                removeButton.dataset.removeProduct;
+
+              if (!productId) {
+                return;
+              }
+
+              const response = await fetch(
+                '/api/cart/items/' + productId,
+                {
+                  method: 'DELETE',
+                }
+              );
+
+              if (response.ok) {
+                window.location.reload();
+              }
+            });
+          }
+        </script>
+      
       </body>
     </html>
   `);
