@@ -144,7 +144,6 @@ cartPageRouter.get('/cart', (request, response) => {
             });
           }
         </script>
-      
       </body>
     </html>
   `);
