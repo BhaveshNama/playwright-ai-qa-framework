@@ -16,6 +16,10 @@ const shippingAddressSchema = z.object({
   country: z.string().trim().min(1),
 });
 
+const orderStatusSchema = z.object({
+  status: z.enum(['CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']),
+});
+
 orderRouter.post('/api/orders', (request, response) => {
   const parsedRequest = shippingAddressSchema.safeParse(request.body);
 
@@ -50,6 +54,48 @@ orderRouter.post('/api/orders', (request, response) => {
   const order = orderService.createOrder(sessionId, checkoutResult.summary);
 
   response.status(201).json(order);
+});
+
+orderRouter.patch('/api/orders/:orderId/status', (request, response) => {
+  const parsedRequest = orderStatusSchema.safeParse(request.body);
+
+  if (!parsedRequest.success) {
+    response.status(400).json({
+      error: 'A valid order status is required',
+    });
+
+    return;
+  }
+
+  const sessionId = resolveCartId(request);
+
+  try {
+    const order = orderService.updateStatus(
+      sessionId,
+      request.params.orderId,
+      parsedRequest.data.status,
+    );
+
+    if (!order) {
+      response.status(404).json({
+        error: 'Order not found',
+      });
+
+      return;
+    }
+
+    response.status(200).json(order);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      response.status(409).json({
+        error: error.message,
+      });
+
+      return;
+    }
+
+    throw error;
+  }
 });
 
 orderRouter.get('/api/orders', (request, response) => {

@@ -40,6 +40,28 @@ export class OrderService {
     return order ? this.cloneOrder(order) : undefined;
   }
 
+  updateStatus(sessionId: string, orderId: string, nextStatus: Order['status']): Order | undefined {
+    const orders = this.ordersBySession.get(sessionId);
+
+    if (!orders) {
+      return undefined;
+    }
+
+    const order = orders.find((candidate) => candidate.id === orderId);
+
+    if (!order) {
+      return undefined;
+    }
+
+    if (!this.isValidStatusTransition(order.status, nextStatus)) {
+      throw new Error(`Invalid order status transition: ${order.status} -> ${nextStatus}`);
+    }
+
+    order.status = nextStatus;
+
+    return this.cloneOrder(order);
+  }
+
   clear(sessionId: string): void {
     this.ordersBySession.delete(sessionId);
   }
@@ -51,6 +73,21 @@ export class OrderService {
       .toUpperCase();
 
     return `ORD-${normalizedSessionId}-${String(sequence).padStart(4, '0')}`;
+  }
+
+  private isValidStatusTransition(
+    currentStatus: Order['status'],
+    nextStatus: Order['status'],
+  ): boolean {
+    const allowedTransitions: Record<Order['status'], Order['status'][]> = {
+      CONFIRMED: ['PROCESSING', 'CANCELLED'],
+      PROCESSING: ['SHIPPED', 'CANCELLED'],
+      SHIPPED: ['DELIVERED'],
+      DELIVERED: [],
+      CANCELLED: [],
+    };
+
+    return allowedTransitions[currentStatus].includes(nextStatus);
   }
 
   private cloneOrder(order: Order): Order {
