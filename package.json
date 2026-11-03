@@ -14,6 +14,7 @@
     "app:dev": "tsx watch apps/nexus-shop/src/server/index.ts",
     "app:health": "node -e \"fetch('http://127.0.0.1:3000/health').then(async (response) => console.log(response.status, await response.text())).catch(() => { console.error('NexusShop is unavailable'); process.exitCode = 1; })\"",
     "test": "playwright test",
+    "intelligence": "tsx automation/intelligence/runners/run-intelligence-pipeline.ts",
     "test:framework": "playwright test --project=framework",
     "test:api": "playwright test --project=api --pass-with-no-tests",
     "test:chromium": "playwright test --project=chromium --pass-with-no-tests",
