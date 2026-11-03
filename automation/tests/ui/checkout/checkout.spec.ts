@@ -4,10 +4,11 @@ import { testTags } from '../../../config/test-tags';
 import { CartPage } from '../../../pages/cart.page';
 import { CataloguePage } from '../../../pages/catalogue.page';
 import { CheckoutPage } from '../../../pages/checkout.page';
+import { OrdersPage } from '../../../pages/orders.page';
 
 test.describe('NexusShop checkout', () => {
   test(
-    'CHECKOUT-001 | checkout | validates shipping details for a populated cart',
+    'CHECKOUT-001 | checkout | creates a confirmed order from a populated cart',
     {
       tag: [testTags.ui, testTags.smoke, testTags.critical, testTags.positive],
     },
@@ -15,6 +16,7 @@ test.describe('NexusShop checkout', () => {
       const cataloguePage = new CataloguePage(page);
       const cartPage = new CartPage(page);
       const checkoutPage = new CheckoutPage(page);
+      const ordersPage = new OrdersPage(page);
 
       await cataloguePage.open();
 
@@ -27,8 +29,6 @@ test.describe('NexusShop checkout', () => {
       await expect(page).toHaveURL(/\/checkout$/);
 
       await expect(checkoutPage.heading).toBeVisible();
-
-      await expect(checkoutPage.orderSummary).toBeVisible();
 
       await expect(checkoutPage.checkoutTotal).toHaveText('Total: $39.99');
 
@@ -43,7 +43,21 @@ test.describe('NexusShop checkout', () => {
 
       await checkoutPage.placeOrder();
 
-      await expect(checkoutPage.checkoutMessage).toHaveText('Checkout details are valid.');
+      await expect(page).toHaveURL(/\/orders\?orderId=ORD-[A-Z0-9]+-0001$/);
+
+      await expect(ordersPage.heading).toBeVisible();
+
+      await expect(ordersPage.orderDetails).toBeVisible();
+
+      await expect(ordersPage.orderIdentifier).toContainText(/^ORD-[A-Z0-9]+-0001$/);
+
+      await expect(ordersPage.orderStatus).toHaveText('Status: CONFIRMED');
+
+      await expect(ordersPage.orderTotal).toHaveText('Total: $39.99');
+
+      await expect(ordersPage.shippingRecipient).toHaveText('Ship to: Demo Customer');
+
+      await expect(ordersPage.continueShoppingLink).toBeVisible();
     },
   );
 

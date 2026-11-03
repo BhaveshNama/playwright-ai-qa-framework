@@ -135,7 +135,7 @@ checkoutPageRouter.get('/checkout', (request, response) => {
                         new FormData(checkoutForm);
 
                       const response = await fetch(
-                        '/api/checkout',
+                        '/api/orders',
                         {
                           method: 'POST',
                           headers: {
@@ -159,8 +159,13 @@ checkoutPageRouter.get('/checkout', (request, response) => {
                       );
 
                       if (response.ok) {
-                        checkoutMessage.textContent =
-                          'Checkout details are valid.';
+                        const order = await response.json();
+
+                        window.location.assign(
+                          '/orders?orderId=' +
+                            encodeURIComponent(order.id)
+                        );
+
                         return;
                       }
 

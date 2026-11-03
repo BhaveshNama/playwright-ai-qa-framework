@@ -8,6 +8,8 @@ import { checkoutPageRouter } from '../routes/checkout-page.route';
 import { checkoutRouter } from '../routes/checkout.route';
 import { healthRouter } from '../routes/health.route';
 import { loginRouter } from '../routes/login.route';
+import { orderRouter } from '../routes/order.route';
+import { ordersPageRouter } from '../routes/orders-page.route';
 import { productRouter } from '../routes/product.route';
 
 /*
@@ -28,9 +30,12 @@ export function createApp(): express.Express {
   app.use(productRouter);
   app.use(authenticationRouter);
   app.use(cartRouter);
-  app.use(cartPageRouter);
   app.use(checkoutRouter);
+  app.use(orderRouter);
+
+  app.use(cartPageRouter);
   app.use(checkoutPageRouter);
+  app.use(ordersPageRouter);
   app.use(loginRouter);
   app.use(catalogueRouter);
 
