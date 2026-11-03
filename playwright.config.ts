@@ -51,7 +51,8 @@ export default defineConfig({
 
   /*
    * HTML supports local investigation. JUnit provides a machine-readable
-   * result for future CI integrations.
+   * result for CI integrations. Nexus JSON provides structured execution
+   * evidence for AgenticQA intelligence and agent workflows.
    */
   reporter: [
     ['list'],
@@ -68,6 +69,7 @@ export default defineConfig({
         outputFile: 'test-results/junit.xml',
       },
     ],
+    ['./automation/reporters/nexus-json.reporter.ts'],
   ],
 
   use: {
