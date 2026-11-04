@@ -3,6 +3,9 @@ import path from 'node:path';
 
 import type {
   ExecutionHistory,
+  ExecutionRunScope,
+  ExecutionRunSource,
+  ExecutionRunType,
   HistoricalExecutionStatus,
   HistoricalTestExecution,
 } from '../models/execution-history.model';
@@ -24,15 +27,26 @@ interface NexusExecutionReport {
   results: NexusExecutionResult[];
 }
 
+export interface ExecutionRunContext {
+  runType: ExecutionRunType;
+  source: ExecutionRunSource;
+  scope: ExecutionRunScope;
+}
+
 export interface ExecutionHistoryUpdateResult {
   runId: string;
   addedExecutions: number;
   totalExecutions: number;
   alreadyIngested: boolean;
+  runContext: ExecutionRunContext;
 }
 
 export class ExecutionHistoryService {
-  update(sourceFile: string, historyFile: string): ExecutionHistoryUpdateResult {
+  update(
+    sourceFile: string,
+    historyFile: string,
+    runContext: ExecutionRunContext,
+  ): ExecutionHistoryUpdateResult {
     if (!fs.existsSync(sourceFile)) {
       throw new Error(`Nexus intelligence report not found: ${sourceFile}`);
     }
@@ -50,6 +64,7 @@ export class ExecutionHistoryService {
       updatedAt: new Date().toISOString(),
       ingestedRunIds: [],
       executions: [],
+      runs: [],
     };
 
     if (fs.existsSync(historyFile)) {
@@ -60,6 +75,10 @@ export class ExecutionHistoryService {
       }
 
       history = existingHistory;
+
+      // Backward compatibility for history created
+      // before run segmentation was introduced.
+      history.runs ??= [];
     }
 
     if (history.ingestedRunIds.includes(runId)) {
@@ -68,6 +87,7 @@ export class ExecutionHistoryService {
         addedExecutions: 0,
         totalExecutions: history.executions.length,
         alreadyIngested: true,
+        runContext,
       };
     }
 
@@ -80,9 +100,25 @@ export class ExecutionHistoryService {
       durationMs: result.durationMs,
       retry: result.retry,
       timestamp: result.timestamp,
+
+      runType: runContext.runType,
+      runSource: runContext.source,
+      runScope: runContext.scope,
     }));
 
     history.executions.push(...executions);
+
+    history.runs ??= [];
+
+    history.runs.push({
+      runId,
+      runType: runContext.runType,
+      source: runContext.source,
+      scope: runContext.scope,
+      generatedAt: sourceReport.generatedAt,
+      executionCount: executions.length,
+    });
+
     history.ingestedRunIds.push(runId);
     history.updatedAt = new Date().toISOString();
 
@@ -97,6 +133,7 @@ export class ExecutionHistoryService {
       addedExecutions: executions.length,
       totalExecutions: history.executions.length,
       alreadyIngested: false,
+      runContext,
     };
   }
 }

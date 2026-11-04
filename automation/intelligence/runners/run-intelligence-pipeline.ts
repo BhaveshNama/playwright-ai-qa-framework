@@ -5,6 +5,7 @@ import { executionHistoryService } from '../services/execution-history.service';
 import { failureAnalysisService } from '../services/failure-analysis.service';
 import { flakinessAnalysisService } from '../services/flakiness-analysis.service';
 import { qaOrchestrationService } from '../services/qa-orchestration.service';
+import { getExecutionRunContext } from '../config/execution-context.config';
 
 const intelligenceDirectory = path.resolve(process.cwd(), 'artifacts', 'intelligence');
 
@@ -23,7 +24,17 @@ const aiAnalysisFile = path.join(intelligenceDirectory, 'ai-analysis.json');
 async function main(): Promise<void> {
   console.log('Starting AgenticQA intelligence pipeline...');
 
-  const historyResult = executionHistoryService.update(testResultsFile, executionHistoryFile);
+  const runContext = getExecutionRunContext();
+
+  console.log(
+    `Execution context: ${runContext.runType} / ${runContext.source} / ${runContext.scope}`,
+  );
+
+  const historyResult = executionHistoryService.update(
+    testResultsFile,
+    executionHistoryFile,
+    runContext,
+  );
 
   if (historyResult.alreadyIngested) {
     console.log(`Execution run already ingested: ${historyResult.runId}`);
