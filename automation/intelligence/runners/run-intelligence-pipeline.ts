@@ -8,12 +8,15 @@ import { failureAnalysisService } from '../services/failure-analysis.service';
 import { flakinessAnalysisService } from '../services/flakiness-analysis.service';
 import { intelligenceSummaryService } from '../services/intelligence-summary.service';
 import { qaOrchestrationService } from '../services/qa-orchestration.service';
+import { reliabilityTrendService } from '../services/reliability-trend.service';
 
 const intelligenceDirectory = path.resolve(process.cwd(), 'artifacts', 'intelligence');
 
 const testResultsFile = path.join(intelligenceDirectory, 'test-results.json');
 
 const executionHistoryFile = path.join(intelligenceDirectory, 'execution-history.json');
+
+const reliabilityTrendFile = path.join(intelligenceDirectory, 'reliability-trend.json');
 
 const failureAnalysisFile = path.join(intelligenceDirectory, 'failure-analysis.json');
 
@@ -63,6 +66,19 @@ async function main(): Promise<void> {
 
   console.log(`Execution history contains ${historyResult.totalExecutions} execution(s).`);
 
+  const reliabilityTrendResult = reliabilityTrendService.analyze(
+    executionHistoryFile,
+    reliabilityTrendFile,
+  );
+
+  console.log(
+    `Reliability trend analysis completed for ${reliabilityTrendResult.report.totalGroups} test/project group(s).`,
+  );
+
+  console.log(
+    `Reliability trends: ${reliabilityTrendResult.report.improving} improving, ${reliabilityTrendResult.report.stable} stable, ${reliabilityTrendResult.report.degrading} degrading, ${reliabilityTrendResult.report.insufficientHistory} insufficient history.`,
+  );
+
   const failureResult = failureAnalysisService.analyze(
     archiveResult.archivedReportFile,
     failureAnalysisFile,
@@ -110,6 +126,7 @@ async function main(): Promise<void> {
   const summaryResult = intelligenceSummaryService.generate(
     archiveResult.archivedReportFile,
     flakinessAnalysisFile,
+    reliabilityTrendFile,
     orchestrationFile,
     aiAnalysisFile,
     intelligenceSummaryJsonFile,

@@ -38,6 +38,18 @@ interface FlakinessAnalysisReport {
   crossBrowserAnalyses: CrossBrowserFlakinessAnalysis[];
 }
 
+interface ReliabilityTrendReport {
+  schemaVersion: string;
+  generatedAt: string;
+  sourceHistory: string;
+  recentWindowSize: number;
+  totalGroups: number;
+  improving: number;
+  stable: number;
+  degrading: number;
+  insufficientHistory: number;
+}
+
 interface QaOrchestrationReport {
   schemaVersion: string;
   generatedAt: string;
@@ -145,6 +157,15 @@ function createMarkdown(summary: IntelligenceSummary): string {
     `- Intermittent tests: ${summary.reliability.intermittentTests}`,
     `- Consistently failing tests: ${summary.reliability.consistentlyFailingTests}`,
     '',
+    '## Reliability Trends',
+    '',
+    `- Recent window size: ${summary.trends.recentWindowSize}`,
+    `- Groups analyzed: ${summary.trends.totalGroups}`,
+    `- Improving: ${summary.trends.improving}`,
+    `- Stable: ${summary.trends.stable}`,
+    `- Degrading: ${summary.trends.degrading}`,
+    `- Insufficient history: ${summary.trends.insufficientHistory}`,
+    '',
     '## QA Decisions',
     '',
     `- Total decisions: ${summary.decisions.totalDecisions}`,
@@ -171,6 +192,7 @@ export class IntelligenceSummaryService {
   generate(
     executionReportFile: string,
     flakinessReportFile: string,
+    reliabilityTrendFile: string,
     orchestrationReportFile: string,
     aiReportFile: string,
     jsonFile: string,
@@ -187,6 +209,11 @@ export class IntelligenceSummaryService {
       'Flakiness analysis report',
     );
 
+    const reliabilityTrendReport = readJson<ReliabilityTrendReport>(
+      reliabilityTrendFile,
+      'Reliability trend report',
+    );
+
     const orchestrationReport = readJson<QaOrchestrationReport>(
       orchestrationReportFile,
       'QA orchestration report',
@@ -197,6 +224,8 @@ export class IntelligenceSummaryService {
     validateSchema(executionReport.schemaVersion, 'Nexus intelligence');
 
     validateSchema(flakinessReport.schemaVersion, 'flakiness analysis');
+
+    validateSchema(reliabilityTrendReport.schemaVersion, 'reliability trend');
 
     validateSchema(orchestrationReport.schemaVersion, 'QA orchestration');
 
@@ -248,6 +277,20 @@ export class IntelligenceSummaryService {
         intermittentTests: flakinessReport.classifications['INTERMITTENT'] ?? 0,
 
         consistentlyFailingTests: flakinessReport.classifications['CONSISTENTLY_FAILING'] ?? 0,
+      },
+
+      trends: {
+        recentWindowSize: reliabilityTrendReport.recentWindowSize,
+
+        totalGroups: reliabilityTrendReport.totalGroups,
+
+        improving: reliabilityTrendReport.improving,
+
+        stable: reliabilityTrendReport.stable,
+
+        degrading: reliabilityTrendReport.degrading,
+
+        insufficientHistory: reliabilityTrendReport.insufficientHistory,
       },
 
       decisions: {

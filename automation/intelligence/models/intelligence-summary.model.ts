@@ -42,8 +42,18 @@ export interface IntelligenceSummary {
 
   execution: IntelligenceExecutionSummary;
   reliability: IntelligenceReliabilitySummary;
+  trends: IntelligenceTrendSummary;
   decisions: IntelligenceDecisionSummary;
   ai: IntelligenceAiSummary;
 
   qualitySignal: IntelligenceQualitySignal;
+}
+
+export interface IntelligenceTrendSummary {
+  recentWindowSize: number;
+  totalGroups: number;
+  improving: number;
+  stable: number;
+  degrading: number;
+  insufficientHistory: number;
 }

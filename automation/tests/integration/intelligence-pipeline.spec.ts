@@ -12,6 +12,7 @@ import { qaOrchestrationService } from '../../intelligence/services/qa-orchestra
 import { flakinessAnalysisService } from '../../intelligence/services/flakiness-analysis.service';
 import { executionReportArchiveService } from '../../intelligence/services/execution-report-archive.service';
 import { intelligenceSummaryService } from '../../intelligence/services/intelligence-summary.service';
+import { reliabilityTrendService } from '../../intelligence/services/reliability-trend.service';
 
 function createTempDirectory(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'agenticqa-'));
@@ -75,6 +76,8 @@ function createSummaryFixture(directory: string, options: SummaryFixtureOptions 
 
   const flakinessFile = path.join(directory, 'flaky-test-analysis.json');
 
+  const reliabilityTrendFile = path.join(directory, 'reliability-trend.json');
+
   const orchestrationFile = path.join(directory, 'qa-orchestration.json');
 
   const aiFile = path.join(directory, 'ai-analysis.json');
@@ -128,6 +131,19 @@ function createSummaryFixture(directory: string, options: SummaryFixtureOptions 
     crossBrowserAnalyses: [],
   });
 
+  writeJson(reliabilityTrendFile, {
+    schemaVersion: '1.0',
+    generatedAt: '2026-11-04T10:00:00.000Z',
+    sourceHistory: 'execution-history.json',
+    recentWindowSize: 5,
+    totalGroups: 3,
+    improving: 0,
+    stable: 3,
+    degrading: 0,
+    insufficientHistory: 0,
+    analyses: [],
+  });
+
   writeJson(orchestrationFile, {
     schemaVersion: '1.0',
     generatedAt: '2026-11-04T10:00:00.000Z',
@@ -151,10 +167,31 @@ function createSummaryFixture(directory: string, options: SummaryFixtureOptions 
   return {
     executionFile,
     flakinessFile,
+    reliabilityTrendFile,
     orchestrationFile,
     aiFile,
     jsonFile,
     markdownFile,
+  };
+}
+
+function createHistoricalExecution(
+  sequence: number,
+  status: 'passed' | 'failed' | 'timedOut',
+  durationMs: number,
+) {
+  return {
+    runId: `trend-run-${sequence}`,
+    testId: 'auth-002',
+    title: 'AUTH-002 | authentication | rejects invalid credentials',
+    project: 'firefox',
+    status,
+    durationMs,
+    retry: 0,
+    timestamp: new Date(Date.UTC(2026, 10, 4, 10, sequence)).toISOString(),
+    runType: 'full-regression',
+    runSource: 'local',
+    runScope: 'mixed',
   };
 }
 
@@ -848,6 +885,7 @@ test(
       const result = intelligenceSummaryService.generate(
         files.executionFile,
         files.flakinessFile,
+        files.reliabilityTrendFile,
         files.orchestrationFile,
         files.aiFile,
         files.jsonFile,
@@ -870,6 +908,15 @@ test(
         interrupted: 0,
       });
 
+      expect(result.summary.trends).toEqual({
+        recentWindowSize: 5,
+        totalGroups: 3,
+        improving: 0,
+        stable: 3,
+        degrading: 0,
+        insufficientHistory: 0,
+      });
+
       expect(result.summary.ai).toMatchObject({
         provider: 'disabled',
         enabled: false,
@@ -880,7 +927,15 @@ test(
 
       expect(fs.existsSync(files.markdownFile)).toBe(true);
 
-      expect(fs.readFileSync(files.markdownFile, 'utf8')).toContain('**GREEN**');
+      const markdown = fs.readFileSync(files.markdownFile, 'utf8');
+
+      expect(markdown).toContain('## Reliability Trends');
+
+      expect(markdown).toContain('- Recent window size: 5');
+
+      expect(markdown).toContain('- Stable: 3');
+
+      expect(markdown).toContain('**GREEN**');
     } finally {
       fs.rmSync(directory, {
         recursive: true,
@@ -906,6 +961,7 @@ test(
       const result = intelligenceSummaryService.generate(
         files.executionFile,
         files.flakinessFile,
+        files.reliabilityTrendFile,
         files.orchestrationFile,
         files.aiFile,
         files.jsonFile,
@@ -923,6 +979,8 @@ test(
       expect(result.summary.execution.failed).toBe(1);
 
       expect(result.summary.execution.passed).toBe(2);
+
+      expect(result.summary.trends.stable).toBe(3);
 
       expect(fs.readFileSync(files.markdownFile, 'utf8')).toContain('**RED**');
     } finally {
@@ -950,6 +1008,7 @@ test(
       const result = intelligenceSummaryService.generate(
         files.executionFile,
         files.flakinessFile,
+        files.reliabilityTrendFile,
         files.orchestrationFile,
         files.aiFile,
         files.jsonFile,
@@ -968,7 +1027,212 @@ test(
 
       expect(result.summary.execution.failed).toBe(0);
 
+      expect(result.summary.trends).toMatchObject({
+        recentWindowSize: 5,
+        totalGroups: 3,
+        degrading: 0,
+      });
+
       expect(fs.readFileSync(files.markdownFile, 'utf8')).toContain('**AMBER**');
+    } finally {
+      fs.rmSync(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
+
+test(
+  'CFG-088 | reliability trend | requires historical baseline before classifying a trend',
+  {
+    tag: [testTags.integration, testTags.negative],
+  },
+  async () => {
+    const directory = createTempDirectory();
+
+    try {
+      const historyFile = path.join(directory, 'execution-history.json');
+
+      const outputFile = path.join(directory, 'reliability-trend.json');
+
+      const executions = [
+        createHistoricalExecution(1, 'passed', 5000),
+        createHistoricalExecution(2, 'passed', 6000),
+        createHistoricalExecution(3, 'timedOut', 30000),
+        createHistoricalExecution(4, 'passed', 7000),
+      ];
+
+      writeJson(historyFile, {
+        schemaVersion: '1.0',
+        updatedAt: '2026-11-04T10:30:00.000Z',
+        ingestedRunIds: executions.map((execution) => execution.runId),
+        runs: [],
+        executions,
+      });
+
+      const result = reliabilityTrendService.analyze(historyFile, outputFile);
+
+      expect(result.report.totalGroups).toBe(1);
+      expect(result.report.insufficientHistory).toBe(1);
+
+      expect(result.report.analyses[0].direction).toBe('INSUFFICIENT_HISTORY');
+
+      expect(result.report.analyses[0].recent.executions).toBe(4);
+
+      expect(result.report.analyses[0].recent.timedOut).toBe(1);
+    } finally {
+      fs.rmSync(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
+
+test(
+  'CFG-089 | reliability trend | detects degrading reliability',
+  {
+    tag: [testTags.integration, testTags.critical],
+  },
+  async () => {
+    const directory = createTempDirectory();
+
+    try {
+      const historyFile = path.join(directory, 'execution-history.json');
+
+      const outputFile = path.join(directory, 'reliability-trend.json');
+
+      const executions = [
+        createHistoricalExecution(1, 'passed', 5000),
+        createHistoricalExecution(2, 'passed', 5000),
+        createHistoricalExecution(3, 'passed', 7000),
+        createHistoricalExecution(4, 'failed', 7000),
+        createHistoricalExecution(5, 'passed', 7000),
+        createHistoricalExecution(6, 'timedOut', 30000),
+        createHistoricalExecution(7, 'passed', 7000),
+      ];
+
+      writeJson(historyFile, {
+        schemaVersion: '1.0',
+        updatedAt: '2026-11-04T11:00:00.000Z',
+        ingestedRunIds: executions.map((execution) => execution.runId),
+        runs: [],
+        executions,
+      });
+
+      const result = reliabilityTrendService.analyze(historyFile, outputFile);
+
+      const analysis = result.report.analyses[0];
+
+      expect(analysis.historical.executions).toBe(2);
+      expect(analysis.recent.executions).toBe(5);
+      expect(analysis.historical.failureRate).toBe(0);
+      expect(analysis.recent.failureRate).toBeCloseTo(0.4);
+      expect(analysis.direction).toBe('DEGRADING');
+
+      expect(result.report.degrading).toBe(1);
+    } finally {
+      fs.rmSync(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
+
+test(
+  'CFG-090 | reliability trend | detects improving reliability',
+  {
+    tag: [testTags.integration, testTags.positive],
+  },
+  async () => {
+    const directory = createTempDirectory();
+
+    try {
+      const historyFile = path.join(directory, 'execution-history.json');
+
+      const outputFile = path.join(directory, 'reliability-trend.json');
+
+      const executions = [
+        createHistoricalExecution(1, 'failed', 12000),
+        createHistoricalExecution(2, 'timedOut', 30000),
+        createHistoricalExecution(3, 'passed', 7000),
+        createHistoricalExecution(4, 'passed', 7000),
+        createHistoricalExecution(5, 'passed', 7000),
+        createHistoricalExecution(6, 'passed', 7000),
+        createHistoricalExecution(7, 'passed', 7000),
+      ];
+
+      writeJson(historyFile, {
+        schemaVersion: '1.0',
+        updatedAt: '2026-11-04T11:00:00.000Z',
+        ingestedRunIds: executions.map((execution) => execution.runId),
+        runs: [],
+        executions,
+      });
+
+      const result = reliabilityTrendService.analyze(historyFile, outputFile);
+
+      const analysis = result.report.analyses[0];
+
+      expect(analysis.historical.failureRate).toBe(1);
+      expect(analysis.recent.failureRate).toBe(0);
+      expect(analysis.direction).toBe('IMPROVING');
+
+      expect(result.report.improving).toBe(1);
+    } finally {
+      fs.rmSync(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
+
+test(
+  'CFG-091 | reliability trend | keeps stable reliability within thresholds',
+  {
+    tag: [testTags.integration, testTags.positive],
+  },
+  async () => {
+    const directory = createTempDirectory();
+
+    try {
+      const historyFile = path.join(directory, 'execution-history.json');
+
+      const outputFile = path.join(directory, 'reliability-trend.json');
+
+      const executions = [
+        createHistoricalExecution(1, 'passed', 10000),
+        createHistoricalExecution(2, 'passed', 10000),
+        createHistoricalExecution(3, 'passed', 11000),
+        createHistoricalExecution(4, 'passed', 11000),
+        createHistoricalExecution(5, 'passed', 11000),
+        createHistoricalExecution(6, 'passed', 11000),
+        createHistoricalExecution(7, 'passed', 11000),
+      ];
+
+      writeJson(historyFile, {
+        schemaVersion: '1.0',
+        updatedAt: '2026-11-04T11:00:00.000Z',
+        ingestedRunIds: executions.map((execution) => execution.runId),
+        runs: [],
+        executions,
+      });
+
+      const result = reliabilityTrendService.analyze(historyFile, outputFile);
+
+      const analysis = result.report.analyses[0];
+
+      expect(analysis.failureRateChange).toBe(0);
+
+      expect(analysis.durationChangePercent).toBeCloseTo(10);
+
+      expect(analysis.direction).toBe('STABLE');
+      expect(result.report.stable).toBe(1);
+
+      expect(fs.existsSync(outputFile)).toBe(true);
     } finally {
       fs.rmSync(directory, {
         recursive: true,
