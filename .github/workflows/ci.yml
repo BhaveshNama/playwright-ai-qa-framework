@@ -54,17 +54,16 @@ jobs:
       - name: Run quality gates
         run: npm run quality
 
-      - name: Run framework tests
-        run: npm run test:framework
-
-      - name: Run API tests
-        run: npm run test:api
-
       - name: Run full regression
+        id: full-regression
         run: npm test
 
-      - name: Run AgenticQA intelligence pipeline
-        if: always()
+      - name: Preserve and analyze full-regression evidence
+        if: ${{ always() && hashFiles('artifacts/intelligence/test-results.json') != '' }}
+        env:
+          INTELLIGENCE_RUN_TYPE: full-regression
+          INTELLIGENCE_RUN_SOURCE: ci
+          INTELLIGENCE_RUN_SCOPE: mixed
         run: npm run intelligence
 
       - name: Upload Playwright HTML report
