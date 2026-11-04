@@ -9,6 +9,7 @@ import { aiAnalysisService } from '../../intelligence/services/ai-analysis.servi
 import { executionHistoryService } from '../../intelligence/services/execution-history.service';
 import { failureAnalysisService } from '../../intelligence/services/failure-analysis.service';
 import { qaOrchestrationService } from '../../intelligence/services/qa-orchestration.service';
+import { flakinessAnalysisService } from '../../intelligence/services/flakiness-analysis.service';
 
 function createTempDirectory(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'agenticqa-'));
@@ -475,6 +476,176 @@ test(
       expect(() => failureAnalysisService.analyze(missingFile, outputFile)).toThrow(
         `Nexus intelligence report not found: ${missingFile}`,
       );
+    } finally {
+      fs.rmSync(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
+
+test(
+  'CFG-081 | intelligence pipeline | includes targeted browser evidence in flakiness analysis',
+  {
+    tag: [testTags.integration, testTags.critical],
+  },
+  async () => {
+    const directory = createTempDirectory();
+
+    try {
+      const historyFile = path.join(directory, 'execution-history.json');
+
+      const outputFile = path.join(directory, 'flaky-test-analysis.json');
+
+      writeJson(historyFile, {
+        schemaVersion: '1.0',
+        updatedAt: '2026-11-04T06:00:00.000Z',
+        ingestedRunIds: ['targeted-firefox-001', 'targeted-firefox-002', 'targeted-firefox-003'],
+        runs: [],
+        executions: [
+          {
+            runId: 'targeted-firefox-001',
+            testId: 'cart-003',
+            title: 'CART-003 | cart | removes a product from the cart',
+            project: 'firefox',
+            status: 'passed',
+            durationMs: 1000,
+            retry: 0,
+            timestamp: '2026-11-04T05:00:00.000Z',
+            runType: 'targeted',
+            runSource: 'local',
+            runScope: 'firefox',
+          },
+          {
+            runId: 'targeted-firefox-002',
+            testId: 'cart-003',
+            title: 'CART-003 | cart | removes a product from the cart',
+            project: 'firefox',
+            status: 'failed',
+            durationMs: 1100,
+            retry: 0,
+            timestamp: '2026-11-04T05:10:00.000Z',
+            runType: 'targeted',
+            runSource: 'local',
+            runScope: 'firefox',
+          },
+          {
+            runId: 'targeted-firefox-003',
+            testId: 'cart-003',
+            title: 'CART-003 | cart | removes a product from the cart',
+            project: 'firefox',
+            status: 'passed',
+            durationMs: 900,
+            retry: 0,
+            timestamp: '2026-11-04T05:20:00.000Z',
+            runType: 'targeted',
+            runSource: 'local',
+            runScope: 'firefox',
+          },
+        ],
+      });
+
+      const result = flakinessAnalysisService.analyze(historyFile, outputFile);
+
+      expect(result.report.totalHistoricalExecutions).toBe(3);
+
+      expect(result.report.eligibleExecutions).toBe(3);
+
+      expect(result.report.excludedExecutions).toBe(0);
+
+      expect(result.report.analyses).toHaveLength(1);
+
+      expect(result.report.analyses[0].project).toBe('firefox');
+
+      expect(result.report.analyses[0].classification).toBe('INTERMITTENT');
+    } finally {
+      fs.rmSync(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
+
+test(
+  'CFG-082 | intelligence pipeline | excludes framework and API evidence from browser flakiness',
+  {
+    tag: [testTags.integration, testTags.critical],
+  },
+  async () => {
+    const directory = createTempDirectory();
+
+    try {
+      const historyFile = path.join(directory, 'execution-history.json');
+
+      const outputFile = path.join(directory, 'flaky-test-analysis.json');
+
+      writeJson(historyFile, {
+        schemaVersion: '1.0',
+        updatedAt: '2026-11-04T06:00:00.000Z',
+        ingestedRunIds: ['framework-001', 'api-001', 'browser-001'],
+        runs: [],
+        executions: [
+          {
+            runId: 'framework-001',
+            testId: 'cfg-001',
+            title: 'CFG-001 | configuration | synthetic framework test',
+            project: 'framework',
+            status: 'failed',
+            durationMs: 100,
+            retry: 0,
+            timestamp: '2026-11-04T05:00:00.000Z',
+            runType: 'framework',
+            runSource: 'local',
+            runScope: 'framework',
+          },
+          {
+            runId: 'api-001',
+            testId: 'api-001',
+            title: 'API-001 | health API | synthetic API test',
+            project: 'api',
+            status: 'failed',
+            durationMs: 100,
+            retry: 0,
+            timestamp: '2026-11-04T05:10:00.000Z',
+            runType: 'api',
+            runSource: 'local',
+            runScope: 'api',
+          },
+          {
+            runId: 'browser-001',
+            testId: 'cart-001',
+            title: 'CART-001 | cart | adds an available product from the catalogue',
+            project: 'firefox',
+            status: 'passed',
+            durationMs: 1000,
+            retry: 0,
+            timestamp: '2026-11-04T05:20:00.000Z',
+            runType: 'targeted',
+            runSource: 'local',
+            runScope: 'firefox',
+          },
+        ],
+      });
+
+      const result = flakinessAnalysisService.analyze(historyFile, outputFile);
+
+      expect(result.report.totalHistoricalExecutions).toBe(3);
+
+      expect(result.report.eligibleExecutions).toBe(1);
+
+      expect(result.report.excludedExecutions).toBe(2);
+
+      expect(result.report.analyses).toHaveLength(1);
+
+      expect(result.report.analyses[0].project).toBe('firefox');
+
+      expect(result.report.analyses.some((analysis) => analysis.project === 'framework')).toBe(
+        false,
+      );
+
+      expect(result.report.analyses.some((analysis) => analysis.project === 'api')).toBe(false);
     } finally {
       fs.rmSync(directory, {
         recursive: true,
