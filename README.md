@@ -160,9 +160,9 @@ Validated locally:
 
 | Suite                   | Tests |
 | ----------------------- | ----: |
-| Framework / Integration |    80 |
+| Framework / Integration |    84 |
 | API                     |    38 |
-| Full Regression         |   163 |
+| Full Regression         |   167 |
 
 The full regression combines framework, API, and cross-browser UI execution.
 
