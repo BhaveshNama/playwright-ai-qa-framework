@@ -11,6 +11,7 @@ import { failureAnalysisService } from '../../intelligence/services/failure-anal
 import { qaOrchestrationService } from '../../intelligence/services/qa-orchestration.service';
 import { flakinessAnalysisService } from '../../intelligence/services/flakiness-analysis.service';
 import { executionReportArchiveService } from '../../intelligence/services/execution-report-archive.service';
+import { intelligenceSummaryService } from '../../intelligence/services/intelligence-summary.service';
 
 function createTempDirectory(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'agenticqa-'));
@@ -57,6 +58,103 @@ function createExecutionReport(status: 'passed' | 'failed' = 'passed') {
         timestamp: '2026-11-03T12:00:00.000Z',
       },
     ],
+  };
+}
+
+interface SummaryFixtureOptions {
+  failed?: number;
+  timedOut?: number;
+  interrupted?: number;
+  intermittentTests?: number;
+  consistentlyFailingTests?: number;
+  orchestrationResults?: unknown[];
+}
+
+function createSummaryFixture(directory: string, options: SummaryFixtureOptions = {}) {
+  const executionFile = path.join(directory, 'test-results.json');
+
+  const flakinessFile = path.join(directory, 'flaky-test-analysis.json');
+
+  const orchestrationFile = path.join(directory, 'qa-orchestration.json');
+
+  const aiFile = path.join(directory, 'ai-analysis.json');
+
+  const jsonFile = path.join(directory, 'intelligence-summary.json');
+
+  const markdownFile = path.join(directory, 'intelligence-summary.md');
+
+  const failed = options.failed ?? 0;
+  const timedOut = options.timedOut ?? 0;
+  const interrupted = options.interrupted ?? 0;
+
+  const totalTests = 3;
+
+  const passed = totalTests - failed - timedOut - interrupted;
+
+  const intermittentTests = options.intermittentTests ?? 0;
+
+  const consistentlyFailingTests = options.consistentlyFailingTests ?? 0;
+
+  const orchestrationResults = options.orchestrationResults ?? [];
+
+  writeJson(executionFile, {
+    schemaVersion: '1.0',
+    generatedAt: '2026-11-04T10:00:00.000Z',
+    totalTests,
+    totals: {
+      passed,
+      failed,
+      skipped: 0,
+      timedOut,
+      interrupted,
+    },
+    results: [],
+  });
+
+  writeJson(flakinessFile, {
+    schemaVersion: '1.0',
+    generatedAt: '2026-11-04T10:00:00.000Z',
+    sourceHistory: 'execution-history.json',
+    totalHistoricalExecutions: 10,
+    eligibleExecutions: 9,
+    excludedExecutions: 1,
+    totalGroups: 3,
+    classifications: {
+      STABLE: 3 - intermittentTests - consistentlyFailingTests,
+      INTERMITTENT: intermittentTests,
+      CONSISTENTLY_FAILING: consistentlyFailingTests,
+    },
+    analyses: [],
+    crossBrowserAnalyses: [],
+  });
+
+  writeJson(orchestrationFile, {
+    schemaVersion: '1.0',
+    generatedAt: '2026-11-04T10:00:00.000Z',
+    sourceFailureAnalysis: 'failure-analysis.json',
+    sourceFlakinessAnalysis: 'flaky-test-analysis.json',
+    totalDecisions: orchestrationResults.length,
+    decisionTotals: {},
+    results: orchestrationResults,
+  });
+
+  writeJson(aiFile, {
+    schemaVersion: '1.0',
+    generatedAt: '2026-11-04T10:00:00.000Z',
+    sourceOrchestration: 'qa-orchestration.json',
+    provider: 'disabled',
+    enabled: false,
+    totalAnalyses: 0,
+    analyses: [],
+  });
+
+  return {
+    executionFile,
+    flakinessFile,
+    orchestrationFile,
+    aiFile,
+    jsonFile,
+    markdownFile,
   };
 }
 
@@ -727,6 +825,150 @@ test(
       expect(secondResult.runId).toBe(firstResult.runId);
 
       expect(fs.readFileSync(secondResult.archivedReportFile, 'utf8')).toBe(originalArchive);
+    } finally {
+      fs.rmSync(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
+
+test(
+  'CFG-085 | intelligence summary | reports GREEN for a clean execution',
+  {
+    tag: [testTags.integration, testTags.critical, testTags.positive],
+  },
+  async () => {
+    const directory = createTempDirectory();
+
+    try {
+      const files = createSummaryFixture(directory);
+
+      const result = intelligenceSummaryService.generate(
+        files.executionFile,
+        files.flakinessFile,
+        files.orchestrationFile,
+        files.aiFile,
+        files.jsonFile,
+        files.markdownFile,
+        {
+          runId: '2026-11-04T10:00:00.000Z',
+          runType: 'full-regression',
+          source: 'local',
+          scope: 'mixed',
+        },
+      );
+
+      expect(result.summary.qualitySignal).toBe('GREEN');
+
+      expect(result.summary.execution).toMatchObject({
+        totalTests: 3,
+        passed: 3,
+        failed: 0,
+        timedOut: 0,
+        interrupted: 0,
+      });
+
+      expect(result.summary.ai).toMatchObject({
+        provider: 'disabled',
+        enabled: false,
+        autonomousChangesAllowed: false,
+      });
+
+      expect(fs.existsSync(files.jsonFile)).toBe(true);
+
+      expect(fs.existsSync(files.markdownFile)).toBe(true);
+
+      expect(fs.readFileSync(files.markdownFile, 'utf8')).toContain('**GREEN**');
+    } finally {
+      fs.rmSync(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
+
+test(
+  'CFG-086 | intelligence summary | reports RED for a failed execution',
+  {
+    tag: [testTags.integration, testTags.critical, testTags.negative],
+  },
+  async () => {
+    const directory = createTempDirectory();
+
+    try {
+      const files = createSummaryFixture(directory, {
+        failed: 1,
+      });
+
+      const result = intelligenceSummaryService.generate(
+        files.executionFile,
+        files.flakinessFile,
+        files.orchestrationFile,
+        files.aiFile,
+        files.jsonFile,
+        files.markdownFile,
+        {
+          runId: '2026-11-04T10:00:00.000Z',
+          runType: 'full-regression',
+          source: 'ci',
+          scope: 'mixed',
+        },
+      );
+
+      expect(result.summary.qualitySignal).toBe('RED');
+
+      expect(result.summary.execution.failed).toBe(1);
+
+      expect(result.summary.execution.passed).toBe(2);
+
+      expect(fs.readFileSync(files.markdownFile, 'utf8')).toContain('**RED**');
+    } finally {
+      fs.rmSync(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
+
+test(
+  'CFG-087 | intelligence summary | reports AMBER for intermittent evidence',
+  {
+    tag: [testTags.integration, testTags.critical],
+  },
+  async () => {
+    const directory = createTempDirectory();
+
+    try {
+      const files = createSummaryFixture(directory, {
+        intermittentTests: 1,
+      });
+
+      const result = intelligenceSummaryService.generate(
+        files.executionFile,
+        files.flakinessFile,
+        files.orchestrationFile,
+        files.aiFile,
+        files.jsonFile,
+        files.markdownFile,
+        {
+          runId: '2026-11-04T10:00:00.000Z',
+          runType: 'targeted',
+          source: 'local',
+          scope: 'firefox',
+        },
+      );
+
+      expect(result.summary.qualitySignal).toBe('AMBER');
+
+      expect(result.summary.reliability.intermittentTests).toBe(1);
+
+      expect(result.summary.execution.failed).toBe(0);
+
+      expect(fs.readFileSync(files.markdownFile, 'utf8')).toContain('**AMBER**');
     } finally {
       fs.rmSync(directory, {
         recursive: true,

@@ -1,12 +1,13 @@
 import path from 'node:path';
 
+import { getExecutionRunContext } from '../config/execution-context.config';
 import { aiAnalysisService } from '../services/ai-analysis.service';
 import { executionHistoryService } from '../services/execution-history.service';
+import { executionReportArchiveService } from '../services/execution-report-archive.service';
 import { failureAnalysisService } from '../services/failure-analysis.service';
 import { flakinessAnalysisService } from '../services/flakiness-analysis.service';
+import { intelligenceSummaryService } from '../services/intelligence-summary.service';
 import { qaOrchestrationService } from '../services/qa-orchestration.service';
-import { getExecutionRunContext } from '../config/execution-context.config';
-import { executionReportArchiveService } from '../services/execution-report-archive.service';
 
 const intelligenceDirectory = path.resolve(process.cwd(), 'artifacts', 'intelligence');
 
@@ -23,6 +24,10 @@ const orchestrationFile = path.join(intelligenceDirectory, 'qa-orchestration.jso
 const aiAnalysisFile = path.join(intelligenceDirectory, 'ai-analysis.json');
 
 const executionArchiveDirectory = path.join(intelligenceDirectory, 'runs');
+
+const intelligenceSummaryJsonFile = path.join(intelligenceDirectory, 'intelligence-summary.json');
+
+const intelligenceSummaryMarkdownFile = path.join(intelligenceDirectory, 'intelligence-summary.md');
 
 async function main(): Promise<void> {
   console.log('Starting AgenticQA intelligence pipeline...');
@@ -100,6 +105,25 @@ async function main(): Promise<void> {
     `AI provider: ${aiResult.report.provider} (${
       aiResult.report.enabled ? 'enabled' : 'disabled'
     })`,
+  );
+
+  const summaryResult = intelligenceSummaryService.generate(
+    archiveResult.archivedReportFile,
+    flakinessAnalysisFile,
+    orchestrationFile,
+    aiAnalysisFile,
+    intelligenceSummaryJsonFile,
+    intelligenceSummaryMarkdownFile,
+    {
+      runId: archiveResult.runId,
+      runType: runContext.runType,
+      source: runContext.source,
+      scope: runContext.scope,
+    },
+  );
+
+  console.log(
+    `Intelligence summary generated with quality signal: ${summaryResult.summary.qualitySignal}`,
   );
 
   console.log('AgenticQA intelligence pipeline completed successfully.');
