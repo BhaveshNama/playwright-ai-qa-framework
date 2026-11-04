@@ -6,6 +6,7 @@ import { failureAnalysisService } from '../services/failure-analysis.service';
 import { flakinessAnalysisService } from '../services/flakiness-analysis.service';
 import { qaOrchestrationService } from '../services/qa-orchestration.service';
 import { getExecutionRunContext } from '../config/execution-context.config';
+import { executionReportArchiveService } from '../services/execution-report-archive.service';
 
 const intelligenceDirectory = path.resolve(process.cwd(), 'artifacts', 'intelligence');
 
@@ -21,6 +22,8 @@ const orchestrationFile = path.join(intelligenceDirectory, 'qa-orchestration.jso
 
 const aiAnalysisFile = path.join(intelligenceDirectory, 'ai-analysis.json');
 
+const executionArchiveDirectory = path.join(intelligenceDirectory, 'runs');
+
 async function main(): Promise<void> {
   console.log('Starting AgenticQA intelligence pipeline...');
 
@@ -30,8 +33,19 @@ async function main(): Promise<void> {
     `Execution context: ${runContext.runType} / ${runContext.source} / ${runContext.scope}`,
   );
 
-  const historyResult = executionHistoryService.update(
+  const archiveResult = executionReportArchiveService.archive(
     testResultsFile,
+    executionArchiveDirectory,
+  );
+
+  if (archiveResult.alreadyArchived) {
+    console.log(`Execution report already archived: ${archiveResult.runId}`);
+  } else {
+    console.log(`Execution report archived: ${archiveResult.runId}`);
+  }
+
+  const historyResult = executionHistoryService.update(
+    archiveResult.archivedReportFile,
     executionHistoryFile,
     runContext,
   );
@@ -44,7 +58,10 @@ async function main(): Promise<void> {
 
   console.log(`Execution history contains ${historyResult.totalExecutions} execution(s).`);
 
-  const failureResult = failureAnalysisService.analyze(testResultsFile, failureAnalysisFile);
+  const failureResult = failureAnalysisService.analyze(
+    archiveResult.archivedReportFile,
+    failureAnalysisFile,
+  );
 
   console.log(`Failure analysis completed: ${failureResult.report.totalFailures} failure(s).`);
 

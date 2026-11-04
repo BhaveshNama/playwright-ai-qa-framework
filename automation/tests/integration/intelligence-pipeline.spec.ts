@@ -10,6 +10,7 @@ import { executionHistoryService } from '../../intelligence/services/execution-h
 import { failureAnalysisService } from '../../intelligence/services/failure-analysis.service';
 import { qaOrchestrationService } from '../../intelligence/services/qa-orchestration.service';
 import { flakinessAnalysisService } from '../../intelligence/services/flakiness-analysis.service';
+import { executionReportArchiveService } from '../../intelligence/services/execution-report-archive.service';
 
 function createTempDirectory(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'agenticqa-'));
@@ -646,6 +647,86 @@ test(
       );
 
       expect(result.report.analyses.some((analysis) => analysis.project === 'api')).toBe(false);
+    } finally {
+      fs.rmSync(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
+
+test(
+  'CFG-083 | intelligence pipeline | archives execution evidence using the reporter run identifier',
+  {
+    tag: [testTags.integration, testTags.critical],
+  },
+  async () => {
+    const directory = createTempDirectory();
+
+    try {
+      const sourceFile = path.join(directory, 'test-results.json');
+
+      const archiveRoot = path.join(directory, 'runs');
+
+      writeJson(sourceFile, createExecutionReport());
+
+      const result = executionReportArchiveService.archive(sourceFile, archiveRoot);
+
+      expect(result.alreadyArchived).toBe(false);
+
+      expect(result.runId).toBe('2026-11-03T12:00:00.000Z');
+
+      expect(fs.existsSync(result.archivedReportFile)).toBe(true);
+
+      const archivedReport = JSON.parse(fs.readFileSync(result.archivedReportFile, 'utf8')) as {
+        generatedAt: string;
+        totalTests: number;
+      };
+
+      expect(archivedReport.generatedAt).toBe(result.runId);
+
+      expect(archivedReport.totalTests).toBe(1);
+    } finally {
+      fs.rmSync(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
+
+test(
+  'CFG-084 | intelligence pipeline | does not overwrite previously archived execution evidence',
+  {
+    tag: [testTags.integration, testTags.critical],
+  },
+  async () => {
+    const directory = createTempDirectory();
+
+    try {
+      const sourceFile = path.join(directory, 'test-results.json');
+
+      const archiveRoot = path.join(directory, 'runs');
+
+      writeJson(sourceFile, createExecutionReport());
+
+      const firstResult = executionReportArchiveService.archive(sourceFile, archiveRoot);
+
+      const originalArchive = fs.readFileSync(firstResult.archivedReportFile, 'utf8');
+
+      writeJson(sourceFile, {
+        ...createExecutionReport(),
+        totalTests: 999,
+      });
+
+      const secondResult = executionReportArchiveService.archive(sourceFile, archiveRoot);
+
+      expect(secondResult.alreadyArchived).toBe(true);
+
+      expect(secondResult.runId).toBe(firstResult.runId);
+
+      expect(fs.readFileSync(secondResult.archivedReportFile, 'utf8')).toBe(originalArchive);
     } finally {
       fs.rmSync(directory, {
         recursive: true,
