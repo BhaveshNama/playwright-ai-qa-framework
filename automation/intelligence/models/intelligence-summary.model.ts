@@ -23,6 +23,23 @@ export interface IntelligenceReliabilitySummary {
   consistentlyFailingTests: number;
 }
 
+export interface IntelligenceTrendSummary {
+  recentWindowSize: number;
+  totalGroups: number;
+  improving: number;
+  stable: number;
+  degrading: number;
+  insufficientHistory: number;
+}
+
+export interface IntelligenceEnvironmentCorrelationSummary {
+  totalGroups: number;
+  consistent: number;
+  localEnvironmentSensitive: number;
+  ciEnvironmentSensitive: number;
+  insufficientHistory: number;
+}
+
 export interface IntelligenceDecisionSummary {
   totalDecisions: number;
   humanReviewsRequired: number;
@@ -43,17 +60,19 @@ export interface IntelligenceSummary {
   execution: IntelligenceExecutionSummary;
   reliability: IntelligenceReliabilitySummary;
   trends: IntelligenceTrendSummary;
+
+  environmentCorrelation: IntelligenceEnvironmentCorrelationSummary;
+
   decisions: IntelligenceDecisionSummary;
   ai: IntelligenceAiSummary;
 
   qualitySignal: IntelligenceQualitySignal;
 }
 
-export interface IntelligenceTrendSummary {
-  recentWindowSize: number;
+export interface IntelligenceEnvironmentCorrelationSummary {
   totalGroups: number;
-  improving: number;
-  stable: number;
-  degrading: number;
+  consistent: number;
+  localEnvironmentSensitive: number;
+  ciEnvironmentSensitive: number;
   insufficientHistory: number;
 }

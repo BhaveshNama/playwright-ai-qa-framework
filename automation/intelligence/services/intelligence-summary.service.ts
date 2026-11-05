@@ -50,6 +50,17 @@ interface ReliabilityTrendReport {
   insufficientHistory: number;
 }
 
+interface EnvironmentCorrelationReport {
+  schemaVersion: string;
+  generatedAt: string;
+  sourceHistory: string;
+  totalGroups: number;
+  consistent: number;
+  localEnvironmentSensitive: number;
+  ciEnvironmentSensitive: number;
+  insufficientHistory: number;
+}
+
 interface QaOrchestrationReport {
   schemaVersion: string;
   generatedAt: string;
@@ -166,6 +177,14 @@ function createMarkdown(summary: IntelligenceSummary): string {
     `- Degrading: ${summary.trends.degrading}`,
     `- Insufficient history: ${summary.trends.insufficientHistory}`,
     '',
+    '## Environment Correlation',
+    '',
+    `- Groups analyzed: ${summary.environmentCorrelation.totalGroups}`,
+    `- Consistent: ${summary.environmentCorrelation.consistent}`,
+    `- Local environment sensitive: ${summary.environmentCorrelation.localEnvironmentSensitive}`,
+    `- CI environment sensitive: ${summary.environmentCorrelation.ciEnvironmentSensitive}`,
+    `- Insufficient history: ${summary.environmentCorrelation.insufficientHistory}`,
+    '',
     '## QA Decisions',
     '',
     `- Total decisions: ${summary.decisions.totalDecisions}`,
@@ -193,6 +212,7 @@ export class IntelligenceSummaryService {
     executionReportFile: string,
     flakinessReportFile: string,
     reliabilityTrendFile: string,
+    environmentCorrelationFile: string,
     orchestrationReportFile: string,
     aiReportFile: string,
     jsonFile: string,
@@ -214,6 +234,11 @@ export class IntelligenceSummaryService {
       'Reliability trend report',
     );
 
+    const environmentCorrelationReport = readJson<EnvironmentCorrelationReport>(
+      environmentCorrelationFile,
+      'Environment correlation report',
+    );
+
     const orchestrationReport = readJson<QaOrchestrationReport>(
       orchestrationReportFile,
       'QA orchestration report',
@@ -226,6 +251,8 @@ export class IntelligenceSummaryService {
     validateSchema(flakinessReport.schemaVersion, 'flakiness analysis');
 
     validateSchema(reliabilityTrendReport.schemaVersion, 'reliability trend');
+
+    validateSchema(environmentCorrelationReport.schemaVersion, 'environment correlation');
 
     validateSchema(orchestrationReport.schemaVersion, 'QA orchestration');
 
@@ -293,6 +320,18 @@ export class IntelligenceSummaryService {
         insufficientHistory: reliabilityTrendReport.insufficientHistory,
       },
 
+      environmentCorrelation: {
+        totalGroups: environmentCorrelationReport.totalGroups,
+
+        consistent: environmentCorrelationReport.consistent,
+
+        localEnvironmentSensitive: environmentCorrelationReport.localEnvironmentSensitive,
+
+        ciEnvironmentSensitive: environmentCorrelationReport.ciEnvironmentSensitive,
+
+        insufficientHistory: environmentCorrelationReport.insufficientHistory,
+      },
+
       decisions: {
         totalDecisions: orchestrationReport.totalDecisions,
 
@@ -310,6 +349,11 @@ export class IntelligenceSummaryService {
         autonomousChangesAllowed: false,
       },
 
+      /*
+       * Environment correlation remains
+       * diagnostic in v1.0 and does not
+       * modify the quality signal.
+       */
       qualitySignal: determineQualitySignal(executionReport, flakinessReport, orchestrationReport),
     };
 

@@ -6,12 +6,13 @@ import { expect, test } from '@playwright/test';
 
 import { testTags } from '../../config/test-tags';
 import { aiAnalysisService } from '../../intelligence/services/ai-analysis.service';
+import { environmentCorrelationService } from '../../intelligence/services/environment-correlation.service';
 import { executionHistoryService } from '../../intelligence/services/execution-history.service';
-import { failureAnalysisService } from '../../intelligence/services/failure-analysis.service';
-import { qaOrchestrationService } from '../../intelligence/services/qa-orchestration.service';
-import { flakinessAnalysisService } from '../../intelligence/services/flakiness-analysis.service';
 import { executionReportArchiveService } from '../../intelligence/services/execution-report-archive.service';
+import { failureAnalysisService } from '../../intelligence/services/failure-analysis.service';
+import { flakinessAnalysisService } from '../../intelligence/services/flakiness-analysis.service';
 import { intelligenceSummaryService } from '../../intelligence/services/intelligence-summary.service';
+import { qaOrchestrationService } from '../../intelligence/services/qa-orchestration.service';
 import { reliabilityTrendService } from '../../intelligence/services/reliability-trend.service';
 
 function createTempDirectory(): string {
@@ -77,6 +78,8 @@ function createSummaryFixture(directory: string, options: SummaryFixtureOptions 
   const flakinessFile = path.join(directory, 'flaky-test-analysis.json');
 
   const reliabilityTrendFile = path.join(directory, 'reliability-trend.json');
+
+  const environmentCorrelationFile = path.join(directory, 'environment-correlation.json');
 
   const orchestrationFile = path.join(directory, 'qa-orchestration.json');
 
@@ -144,6 +147,18 @@ function createSummaryFixture(directory: string, options: SummaryFixtureOptions 
     analyses: [],
   });
 
+  writeJson(environmentCorrelationFile, {
+    schemaVersion: '1.0',
+    generatedAt: '2026-11-04T10:00:00.000Z',
+    sourceHistory: 'execution-history.json',
+    totalGroups: 0,
+    localEnvironmentSensitive: 0,
+    ciEnvironmentSensitive: 0,
+    consistent: 0,
+    insufficientHistory: 0,
+    analyses: [],
+  });
+
   writeJson(orchestrationFile, {
     schemaVersion: '1.0',
     generatedAt: '2026-11-04T10:00:00.000Z',
@@ -168,6 +183,7 @@ function createSummaryFixture(directory: string, options: SummaryFixtureOptions 
     executionFile,
     flakinessFile,
     reliabilityTrendFile,
+    environmentCorrelationFile,
     orchestrationFile,
     aiFile,
     jsonFile,
@@ -191,6 +207,27 @@ function createHistoricalExecution(
     timestamp: new Date(Date.UTC(2026, 10, 4, 10, sequence)).toISOString(),
     runType: 'full-regression',
     runSource: 'local',
+    runScope: 'mixed',
+  };
+}
+
+function createEnvironmentExecution(
+  sequence: number,
+  source: 'local' | 'ci',
+  status: 'passed' | 'failed' | 'timedOut',
+  durationMs: number,
+) {
+  return {
+    runId: `environment-${source}-${sequence}`,
+    testId: 'auth-002',
+    title: 'AUTH-002 | authentication | rejects invalid credentials',
+    project: 'firefox',
+    status,
+    durationMs,
+    retry: 0,
+    timestamp: new Date(Date.UTC(2026, 10, 4, 12, sequence)).toISOString(),
+    runType: 'full-regression',
+    runSource: source,
     runScope: 'mixed',
   };
 }
@@ -886,6 +923,7 @@ test(
         files.executionFile,
         files.flakinessFile,
         files.reliabilityTrendFile,
+        files.environmentCorrelationFile,
         files.orchestrationFile,
         files.aiFile,
         files.jsonFile,
@@ -962,6 +1000,7 @@ test(
         files.executionFile,
         files.flakinessFile,
         files.reliabilityTrendFile,
+        files.environmentCorrelationFile,
         files.orchestrationFile,
         files.aiFile,
         files.jsonFile,
@@ -1009,6 +1048,7 @@ test(
         files.executionFile,
         files.flakinessFile,
         files.reliabilityTrendFile,
+        files.environmentCorrelationFile,
         files.orchestrationFile,
         files.aiFile,
         files.jsonFile,
@@ -1231,6 +1271,223 @@ test(
 
       expect(analysis.direction).toBe('STABLE');
       expect(result.report.stable).toBe(1);
+
+      expect(fs.existsSync(outputFile)).toBe(true);
+    } finally {
+      fs.rmSync(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
+
+test(
+  'CFG-092 | environment correlation | requires sufficient local and CI history',
+  {
+    tag: [testTags.integration, testTags.negative],
+  },
+  async () => {
+    const directory = createTempDirectory();
+
+    try {
+      const historyFile = path.join(directory, 'execution-history.json');
+
+      const outputFile = path.join(directory, 'environment-correlation.json');
+
+      const executions = [
+        createEnvironmentExecution(1, 'local', 'passed', 7000),
+        createEnvironmentExecution(2, 'local', 'failed', 12000),
+        createEnvironmentExecution(3, 'ci', 'passed', 6000),
+      ];
+
+      writeJson(historyFile, {
+        schemaVersion: '1.0',
+        updatedAt: '2026-11-04T13:00:00.000Z',
+        ingestedRunIds: executions.map((execution) => execution.runId),
+        runs: [],
+        executions,
+      });
+
+      const result = environmentCorrelationService.analyze(historyFile, outputFile);
+
+      expect(result.report.totalGroups).toBe(1);
+
+      expect(result.report.insufficientHistory).toBe(1);
+
+      const analysis = result.report.analyses[0];
+
+      expect(analysis.local.executions).toBe(2);
+
+      expect(analysis.ci.executions).toBe(1);
+
+      expect(analysis.classification).toBe('INSUFFICIENT_HISTORY');
+
+      expect(fs.existsSync(outputFile)).toBe(true);
+    } finally {
+      fs.rmSync(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
+
+test(
+  'CFG-093 | environment correlation | detects local environment sensitivity',
+  {
+    tag: [testTags.integration, testTags.critical],
+  },
+  async () => {
+    const directory = createTempDirectory();
+
+    try {
+      const historyFile = path.join(directory, 'execution-history.json');
+
+      const outputFile = path.join(directory, 'environment-correlation.json');
+
+      const executions = [
+        createEnvironmentExecution(1, 'local', 'failed', 12000),
+        createEnvironmentExecution(2, 'local', 'passed', 7000),
+        createEnvironmentExecution(3, 'ci', 'passed', 6000),
+        createEnvironmentExecution(4, 'ci', 'passed', 6500),
+      ];
+
+      writeJson(historyFile, {
+        schemaVersion: '1.0',
+        updatedAt: '2026-11-04T13:00:00.000Z',
+        ingestedRunIds: executions.map((execution) => execution.runId),
+        runs: [],
+        executions,
+      });
+
+      const result = environmentCorrelationService.analyze(historyFile, outputFile);
+
+      const analysis = result.report.analyses[0];
+
+      expect(analysis.local.executions).toBe(2);
+
+      expect(analysis.ci.executions).toBe(2);
+
+      expect(analysis.local.passRate).toBe(0.5);
+
+      expect(analysis.ci.passRate).toBe(1);
+
+      expect(analysis.passRateDifference).toBe(-0.5);
+
+      expect(analysis.classification).toBe('LOCAL_ENVIRONMENT_SENSITIVE');
+
+      expect(result.report.localEnvironmentSensitive).toBe(1);
+
+      expect(result.report.ciEnvironmentSensitive).toBe(0);
+    } finally {
+      fs.rmSync(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
+
+test(
+  'CFG-094 | environment correlation | detects CI environment sensitivity',
+  {
+    tag: [testTags.integration, testTags.critical],
+  },
+  async () => {
+    const directory = createTempDirectory();
+
+    try {
+      const historyFile = path.join(directory, 'execution-history.json');
+
+      const outputFile = path.join(directory, 'environment-correlation.json');
+
+      const executions = [
+        createEnvironmentExecution(1, 'local', 'passed', 7000),
+        createEnvironmentExecution(2, 'local', 'passed', 7500),
+        createEnvironmentExecution(3, 'ci', 'passed', 6000),
+        createEnvironmentExecution(4, 'ci', 'failed', 14000),
+      ];
+
+      writeJson(historyFile, {
+        schemaVersion: '1.0',
+        updatedAt: '2026-11-04T13:00:00.000Z',
+        ingestedRunIds: executions.map((execution) => execution.runId),
+        runs: [],
+        executions,
+      });
+
+      const result = environmentCorrelationService.analyze(historyFile, outputFile);
+
+      const analysis = result.report.analyses[0];
+
+      expect(analysis.local.passRate).toBe(1);
+
+      expect(analysis.ci.passRate).toBe(0.5);
+
+      expect(analysis.passRateDifference).toBe(0.5);
+
+      expect(analysis.classification).toBe('CI_ENVIRONMENT_SENSITIVE');
+
+      expect(result.report.ciEnvironmentSensitive).toBe(1);
+
+      expect(result.report.localEnvironmentSensitive).toBe(0);
+    } finally {
+      fs.rmSync(directory, {
+        recursive: true,
+        force: true,
+      });
+    }
+  },
+);
+
+test(
+  'CFG-095 | environment correlation | classifies matching environments as consistent',
+  {
+    tag: [testTags.integration, testTags.positive],
+  },
+  async () => {
+    const directory = createTempDirectory();
+
+    try {
+      const historyFile = path.join(directory, 'execution-history.json');
+
+      const outputFile = path.join(directory, 'environment-correlation.json');
+
+      const executions = [
+        createEnvironmentExecution(1, 'local', 'passed', 7000),
+        createEnvironmentExecution(2, 'local', 'passed', 7500),
+        createEnvironmentExecution(3, 'ci', 'passed', 6000),
+        createEnvironmentExecution(4, 'ci', 'passed', 6500),
+      ];
+
+      writeJson(historyFile, {
+        schemaVersion: '1.0',
+        updatedAt: '2026-11-04T13:00:00.000Z',
+        ingestedRunIds: executions.map((execution) => execution.runId),
+        runs: [],
+        executions,
+      });
+
+      const result = environmentCorrelationService.analyze(historyFile, outputFile);
+
+      const analysis = result.report.analyses[0];
+
+      expect(analysis.local.passRate).toBe(1);
+
+      expect(analysis.ci.passRate).toBe(1);
+
+      expect(analysis.passRateDifference).toBe(0);
+
+      expect(analysis.classification).toBe('CONSISTENT');
+
+      expect(result.report.consistent).toBe(1);
+
+      expect(result.report.localEnvironmentSensitive).toBe(0);
+
+      expect(result.report.ciEnvironmentSensitive).toBe(0);
+
+      expect(result.report.insufficientHistory).toBe(0);
 
       expect(fs.existsSync(outputFile)).toBe(true);
     } finally {

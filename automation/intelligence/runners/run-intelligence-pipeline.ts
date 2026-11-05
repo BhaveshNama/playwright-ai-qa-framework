@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { getExecutionRunContext } from '../config/execution-context.config';
 import { aiAnalysisService } from '../services/ai-analysis.service';
+import { environmentCorrelationService } from '../services/environment-correlation.service';
 import { executionHistoryService } from '../services/execution-history.service';
 import { executionReportArchiveService } from '../services/execution-report-archive.service';
 import { failureAnalysisService } from '../services/failure-analysis.service';
@@ -17,6 +18,8 @@ const testResultsFile = path.join(intelligenceDirectory, 'test-results.json');
 const executionHistoryFile = path.join(intelligenceDirectory, 'execution-history.json');
 
 const reliabilityTrendFile = path.join(intelligenceDirectory, 'reliability-trend.json');
+
+const environmentCorrelationFile = path.join(intelligenceDirectory, 'environment-correlation.json');
 
 const failureAnalysisFile = path.join(intelligenceDirectory, 'failure-analysis.json');
 
@@ -79,6 +82,19 @@ async function main(): Promise<void> {
     `Reliability trends: ${reliabilityTrendResult.report.improving} improving, ${reliabilityTrendResult.report.stable} stable, ${reliabilityTrendResult.report.degrading} degrading, ${reliabilityTrendResult.report.insufficientHistory} insufficient history.`,
   );
 
+  const environmentCorrelationResult = environmentCorrelationService.analyze(
+    executionHistoryFile,
+    environmentCorrelationFile,
+  );
+
+  console.log(
+    `Environment correlation completed for ${environmentCorrelationResult.report.totalGroups} test/project group(s).`,
+  );
+
+  console.log(
+    `Environment correlation: ${environmentCorrelationResult.report.consistent} consistent, ${environmentCorrelationResult.report.localEnvironmentSensitive} local-sensitive, ${environmentCorrelationResult.report.ciEnvironmentSensitive} CI-sensitive, ${environmentCorrelationResult.report.insufficientHistory} insufficient history.`,
+  );
+
   const failureResult = failureAnalysisService.analyze(
     archiveResult.archivedReportFile,
     failureAnalysisFile,
@@ -127,6 +143,7 @@ async function main(): Promise<void> {
     archiveResult.archivedReportFile,
     flakinessAnalysisFile,
     reliabilityTrendFile,
+    environmentCorrelationFile,
     orchestrationFile,
     aiAnalysisFile,
     intelligenceSummaryJsonFile,
